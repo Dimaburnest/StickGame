@@ -4,11 +4,7 @@ const { ccclass, property } = _decorator;
 @ccclass('GameManager')
 export class GameManager extends Component {
     private static instance: GameManager
-    @property(Node)
-    player: Node
-
-    @property(Node)
-    enemy: Node
+    
     public static getInstance(): GameManager {
         if (!GameManager.instance) {
             GameManager.instance = new GameManager
