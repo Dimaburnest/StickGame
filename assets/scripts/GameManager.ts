@@ -1,34 +1,418 @@
-import { _decorator, Component, Node, director } from 'cc';
+import {
+    _decorator, BoxCollider2D, Collider2D, Contact2DType, IPhysics2DContact,
+    CCFloat, Component, instantiate, math, Node, Prefab, tween,
+    UITransform, Vec3, view, PhysicsSystem2D
+} from 'cc';
+import { GameEnd } from './GameEnd'
+import { GenPlatform } from './GenPlatform'
+import { GenStick } from './GenStick'
+import { Player } from './Player'
+import { GameStates } from '../State/GameState'
+import { PlayerStates } from '../State/PlayerState'
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
 export class GameManager extends Component {
-    private static instance: GameManager
-    
-    public static getInstance(): GameManager {
-        if (!GameManager.instance) {
-            GameManager.instance = new GameManager
-        }
-        return GameManager.instance
+    @property({
+        type: Node
+    })
+    uiNode: Node = null
+
+    @property({
+        type: Node
+    })
+    rootNode: Node = null
+
+    @property({
+        type: Node
+    })
+    defaultPosition: Node = null
+
+    @property({
+        type: Prefab
+    })
+    stickPrefab: Prefab = null
+
+    @property({
+        type: Prefab
+    })
+    platformPrefab: Prefab = null
+
+    @property({
+        type: Prefab
+    })
+    playerPrefab: Prefab = null
+    @property({
+        type: CCFloat
+    })
+    playerPrefabWidth: number = 80
+
+    @property({
+        type: CCFloat
+    })
+    platformPrefabWidth: number = 200
+
+    @property({
+        type: Prefab
+    })
+    endGamePrefab: Prefab = null
+
+    @property({
+        type: Node
+    })
+    scoreNode: Node = null
+    private endGamePopupInstance: Node = null
+    private platformNode: Node = null
+    private nextPlatformNode: Node = null
+    private oldStickNode: Node = null
+    private stickNode: Node = null
+    private playerNode: Node = null
+    private bonusItemNode: Node = null
+    private stickComponent: GenStick = null
+    private endGameComponent: GameEnd = null
+    private moveDetails = {
+        distance: 0,
+        startX: 0,
+        targetX: 0,
+        duration: 0,
+        elapsedTime: 0,
+        callback: null,
     }
-    onLoad() {
-        if (GameManager.instance) {
-            this.destroy()
+    GameState = GameStates.Idle
+    futurePlatformPosition: number
+
+    protected onLoad() {
+        PhysicsSystem2D.instance.enable = true
+        this.endGameComponent = instantiate(this.endGameComponent)
+        this.uiNode.addChild(this.endGamePopupInstance)
+        this.endGameComponent = this.endGamePopupInstance.getComponent(GameEnd)
+        this.initializeGameInstance()
+        this.initTouchEvents()
+    }
+    initializeGameInstance() {
+        const initialPlatformX = -view.getVisibleSize().width / 2
+        const initialPlayerX = initialPlatformX + this.platformPrefabWidth / 2 - this.playerPrefabWidth / 1.2
+
+        this.platformNode = this.createPlatform(initialPlatformX, this.platformPrefabWidth, false)
+
+        this.futurePlatformPosition = this.platformNode.position.x
+
+        this.playerNode = this.createPlayer(initialPlayerX)
+        this.spawnNextPlatform()
+
+    }
+    calculateNextPlatformPosition() {
+        let offset = 50
+        const minDistance = 150
+        const maxDistance = view.getVisibleSize().width - this.platformPrefabWidth - offset
+
+        let randomDistance = minDistance + Math.random() * (maxDistance - minDistance)
+        let targetX = this.defaultPosition.position.x + randomDistance
+
+        return targetX
+    }
+
+    movePlatformOntoScreen(platformNode: Node, bonusItemNode: Node, targetXPlatform: number, targetXBonusItem: number) {
+        if (platformNode) {
+            tween(platformNode)
+                .to(0.5, { position: new Vec3(targetXPlatform, platformNode.position.y, 0) })
+                .start()
+        }
+        if (bonusItemNode && targetXBonusItem) {
+            tween(bonusItemNode)
+                .to(0.25, { position: new Vec3(targetXBonusItem, -380, 0) })
+                .start()
+        }
+
+    }
+    spawnNextPlatform() {
+        const spawnX = view.getVisibleSize().width
+        const targetXPlatform = this.calculateNextPlatformPosition()
+        this.nextPlatformNode = this.createPlatform(spawnX, 0, true)
+
+        this.movePlatformOntoScreen(this.nextPlatformNode, this.bonusItemNode, targetXPlatform, 0)
+    }
+
+    createPlatform(positionX: number, initialWidth: number = 0, bonusVisible: boolean = true) {
+
+        let platformInstance = instantiate(this.platformPrefab)
+        platformInstance.setSiblingIndex(996)
+        this.rootNode.addChild(platformInstance)
+        const platformComp = platformInstance.getComponent(GenPlatform)
+        if (platformComp) {
+            platformComp.initPlatform(positionX, initialWidth, bonusVisible)
+        } else {
+            console.error("Platform component is missing")
+        }
+        return platformInstance
+    }
+    protected update(deltaTime: number): void {
+        if (this.GameState === GameStates.Touching && this.stickNode) {
+            this.stickNode.getComponent(GenStick).growStick(deltaTime)
+        }
+
+        if ((this.GameState === GameStates.Running || this.GameState === GameStates.Coming) && this.moveDetails.targetX !== 0) {
+            this.moveDetails.elapsedTime += deltaTime
+            let progress = Math.min(this.moveDetails.elapsedTime / this.moveDetails.duration, 1)
+            const newPositionX = math.lerp(this.moveDetails.startX, this.moveDetails.targetX, progress)
+            this.playerNode.setPosition(new Vec3(newPositionX, this.playerNode.position.y, 0))
+
+            if (progress >= 1) {
+
+                this.moveDetails.targetX = 0
+                if (this.moveDetails.callback) {
+                    this.moveDetails.callback()
+                }
+            }
+
+
+        }
+
+        if (this.GameState === GameStates.Running) {
+            this.contactSomething()
+        }
+    }
+    createPlayer(positionX: number) {
+
+        let playerInstance = instantiate(this.playerPrefab)
+        playerInstance.setSiblingIndex(996)
+        this.rootNode.addChild(playerInstance)
+
+
+        const platformTransform = this.platformNode.getComponent(UITransform)
+        const playerTransform = playerInstance.getComponent(UITransform)
+
+        if (platformTransform && playerTransform) {
+            playerInstance.setPosition(new Vec3(
+                positionX,
+                this.platformNode.position.y + platformTransform.height / 2 + playerTransform.height / 2,
+                0
+            ))
+        }
+
+        return playerInstance
+    }
+    onTouchEnd() {
+
+        const platformNodeTransform = this.platformNode.getComponent(UITransform)
+        let playerPassCurrentPlatform =
+            this.playerNode.position.x >= this.platformNode.position.x + platformNodeTransform.width / 2
+
+        if (this.GameState === GameStates.Running && this.playerNode && playerPassCurrentPlatform) {
+            this.playerNode.getComponent(Player).flipPlayer()
             return
         }
-        GameManager.instance = this
 
-        director.addPersistRootNode(this.node)
+        if (this.GameState !== GameStates.Touching || !this.stickNode) {
+            return
+        }
+
+        this.stickComponent = this.stickNode.getComponent(GenStick)
+
+        if (this.stickComponent) {
+            this.stickComponent.stoptStickGrowth()
+            this.playerNode.getComponent(Player).setState(PlayerStates.HitStick)
+            this.stickComponent.stickFall()
+
+            this.scheduleOnce(this.checkResult.bind(this), this.stickComponent.angleTime)
+        } else {
+            console.error("Stick component is missing")
+        }
     }
-    startGame() {
-        console.log('игра началась')
+    initTouchEvents() {
+
+        this.node.on(Node.EventType.TOUCH_START, this.onTouchStart, this)
+        this.node.on(Node.EventType.TOUCH_END, this.onTouchEnd, this)
+    }
+    createStick() {
+        this.stickNode = instantiate(this.stickPrefab)
+        this.stickNode.setSiblingIndex(998)
+        this.rootNode.addChild(this.stickNode)
+        const platformNodeTransform = this.platformNode.getComponent(UITransform)
+        const stickNodeTransform = this.stickNode.getComponent(UITransform)
+        this.stickNode.setPosition(
+            this.platformNode.position.x + platformNodeTransform.width / 2,
+            this.platformNode.position.y + platformNodeTransform.height / 2)
+
+        stickNodeTransform.height = 0
+        this.stickNode.angle = 0
+    }
+    onTouchStart() {
+        if (this.GameState !== GameStates.Idle) {
+            return
+        }
+        this.createStick()
+        this.stickComponent = this.stickNode.getComponent(GenStick)
+        if (this.stickComponent) {
+            this.stickComponent.startStickGrowth()
+            this.playerNode.getComponent(Player).setState(PlayerStates.StickGrow)
+        } else {
+            console.error("Stick component is missing")
+        }
+    }
+    moveTo(targetPositionX: number, duration: number, onComplete: () => void) {
+        this.moveDetails.startX = this.playerNode.position.x
+        this.moveDetails.targetX = targetPositionX
+        this.moveDetails.duration = duration
+        this.moveDetails.elapsedTime = 0
+        this.moveDetails.callback = onComplete
+        this.playerNode.getComponent(Player).setState(PlayerStates.Running)
+    }
+    checkResult() {
+        if (!this.stickNode) {
+            return
+        }
+        const stickNodeTransform = this.stickNode.getComponent(UITransform)
+        const stickRightX = this.stickNode.position.x + stickNodeTransform.height
+        const nextPlatformComp = this.nextPlatformNode.getComponent(GenPlatform)
+
+        if (nextPlatformComp && nextPlatformComp.isStickTouching(stickRightX)) {
+
+        } else {
+            this.onFailed()
+        }
+    }
+    onStickTouchPlatform() {
+        const nextPlatformNodeTransform = this.nextPlatformNode.getComponent(UITransform)
+        let nextPlatformEdge = this.nextPlatformNode.position.x + nextPlatformNodeTransform.width / 3
+
+        this.moveDetails.distance = nextPlatformEdge - this.playerNode.position.x
+        let moveTime = Math.abs(this.moveDetails.distance / 500)
+
+        this.moveTo(nextPlatformEdge, moveTime, () => {
+            this.scheduleOnce(() => {
+                this.resetPlatformsAndPlayer()
+                this.instantiateNextPlatform()
+            })
+            this.playerNode.getComponent(Player).setState(PlayerStates.Idle)
+        })
+    }
+    resetPlatformsAndPlayer() {
+
+        let moveAmount = -view.getVisibleSize().width / 3
+        let moveTime = 0.1
+        const nextPlatformTransform = this.nextPlatformNode.getComponent(UITransform)
+        const playerNodeTransform = this.playerNode.getComponent(UITransform)
+        this.futurePlatformPosition =
+            moveAmount - nextPlatformTransform.width / 2 + playerNodeTransform.width / 1.3
+
+        tween(this.nextPlatformNode)
+            .to(moveTime, {
+                position: new Vec3(
+                    this.futurePlatformPosition,
+                    this.nextPlatformNode.position.y,
+                    0)
+            })
+            .start()
+
+        tween(this.playerNode)
+            .to(moveTime, {
+                position: new Vec3(
+                    moveAmount,
+                    this.playerNode.position.y,
+                    0)
+            })
+            .start()
+
+        if (this.stickNode) {
+            let futureStickPosition = moveAmount - this.nextPlatformNode.position.x - nextPlatformTransform.width / 2 + playerNodeTransform.width / 1.3
+            tween(this.stickNode)
+                .to(moveTime, {
+                    position: new Vec3(
+                        this.stickNode.position.x + futureStickPosition,
+                        this.stickNode.position.y,
+                        0
+                    )
+                })
+                .start()
+        }
+
+        this.platformNode.destroy()
+        this.platformNode = null
+        this.platformNode = this.nextPlatformNode
+
+
+        const platformComp = this.platformNode.getComponent(GenPlatform)
+        if (platformComp) {
+            platformComp.setBonusPlatformVisibility(false)
+        } else {
+            console.error("Platform component is missing")
+        }
+
+        if (this.oldStickNode) {
+            this.oldStickNode.destroy()
+            this.oldStickNode = null
+        }
+        this.oldStickNode = this.stickNode
+        this.stickNode = null
+
+        if (this.bonusItemNode) {
+            this.bonusItemNode.destroy()
+        }
+
+    }
+    onFailed() {
+        const stickNodeTransform = this.stickNode.getComponent(UITransform)
+        let moveLength = this.stickNode.position.x + stickNodeTransform.height - this.playerNode.position.x
+        let moveTime = Math.abs(moveLength / 500)
+
+        this.moveTo(this.stickNode.position.x + stickNodeTransform.height, moveTime, () => {
+            this.playerNode.getComponent(Player).fall()
+
+            this.stickComponent.stickOnFail()
+            this.scheduleOnce(() => {
+                this.endGame()
+            }, 1)
+        })
+    }
+    contactSomething() {
+        let collider = this.playerNode.getComponent(BoxCollider2D)
+        if (collider) {
+            collider.on(Contact2DType.BEGIN_CONTACT, this.onBeginContact, this)
+        }
+    }
+
+    onBeginContact(selfCollider: Collider2D, otherCollider: Collider2D, contact: IPhysics2DContact | null) {
+
+        const otherLayer = otherCollider.node
+        const isFlipped = selfCollider.node.getComponent(Player).isFlipped
+
+        if (otherLayer.name === 'GenPlatform' && isFlipped) {
+            this.onPlayerCrashInToPlatform()
+        }
+    }
+    onPlayerCrashInToPlatform() {
+        this.playerNode.getComponent(Player).fall()
+
+        this.scheduleOnce(() => {
+            this.endGame()
+        }, 1)
     }
     endGame() {
-        console.log('Игра завершена')
+        this.scoreNode.active = false
     }
-    resetGame() {
-        console.log('сброс игры')
+    restartGame() {
+        this.endGameComponent.hidePopup()
+        this.scoreNode.active = true
+        this.dispose()
+        this.initializeGameInstance()
     }
+    dispose() {
+        this.rootNode.removeAllChildren()
+    }
+    instantiateNextPlatform() {
+
+        this.spawnNextPlatform()
+
+        let platformAppearanceTime = this.moveDetails.distance / (200 * 3)
+        tween(this.node)
+            .to(platformAppearanceTime, {
+                position: new Vec3(this.node.position.x - this.moveDetails.distance, this.node.position.y, 0)
+            })
+            .start()
+    }
+
 }
+
 
 

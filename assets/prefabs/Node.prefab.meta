@@ -2,12 +2,12 @@
   "ver": "1.1.50",
   "importer": "prefab",
   "imported": true,
-  "uuid": "9c8569a5-91a8-4683-9b3a-4b077bb7d797",
+  "uuid": "ae331fce-623f-4f26-b98c-b0123bccd980",
   "files": [
     ".json"
   ],
   "subMetas": {},
   "userData": {
-    "syncNodeName": "Rectangle 2"
+    "syncNodeName": "Node"
   }
 }
