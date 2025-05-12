@@ -1,7 +1,7 @@
 import {
     _decorator, BoxCollider2D, Collider2D, Contact2DType, IPhysics2DContact,
     CCFloat, Component, instantiate, math, Node, Prefab, tween,
-    UITransform, Vec3, view, PhysicsSystem2D
+    UITransform, Vec3, view, PhysicsSystem2D, log
 } from 'cc';
 import { GameEnd } from './GameEnd'
 import { GenPlatform } from './GenPlatform'
@@ -67,7 +67,7 @@ export class GameManager extends Component {
     private oldStickNode: Node = null
     private stickNode: Node = null
     private playerNode: Node = null
-    private bonusItemNode: Node = null
+    
     private stickComponent: GenStick = null
     private endGameComponent: GameEnd = null
     private moveDetails = {
@@ -82,10 +82,12 @@ export class GameManager extends Component {
     futurePlatformPosition: number
 
     protected onLoad() {
+
+        console.log("12345", this.endGameComponent)
         PhysicsSystem2D.instance.enable = true
-        this.endGameComponent = instantiate(this.endGameComponent)
+        this.endGamePopupInstance = instantiate(this.endGamePrefab)
         this.uiNode.addChild(this.endGamePopupInstance)
-        this.endGameComponent = this.endGamePopupInstance.getComponent(GameEnd)
+        this.endGameComponent = this.endGamePopupInstance.getComponent(GameEnd) 
         this.initializeGameInstance()
         this.initTouchEvents()
     }
@@ -99,7 +101,7 @@ export class GameManager extends Component {
 
         this.playerNode = this.createPlayer(initialPlayerX)
         this.spawnNextPlatform()
-
+        this.setState(GameStates.Idle, 'initializeGameInstance')
     }
     calculateNextPlatformPosition() {
         let offset = 50
@@ -112,25 +114,22 @@ export class GameManager extends Component {
         return targetX
     }
 
-    movePlatformOntoScreen(platformNode: Node, bonusItemNode: Node, targetXPlatform: number, targetXBonusItem: number) {
+    movePlatformOntoScreen(platformNode: Node, targetXPlatform: number, targetXBonusItem: number) {
         if (platformNode) {
             tween(platformNode)
                 .to(0.5, { position: new Vec3(targetXPlatform, platformNode.position.y, 0) })
                 .start()
         }
-        if (bonusItemNode && targetXBonusItem) {
-            tween(bonusItemNode)
-                .to(0.25, { position: new Vec3(targetXBonusItem, -380, 0) })
-                .start()
-        }
+       
 
     }
+
     spawnNextPlatform() {
         const spawnX = view.getVisibleSize().width
         const targetXPlatform = this.calculateNextPlatformPosition()
         this.nextPlatformNode = this.createPlatform(spawnX, 0, true)
 
-        this.movePlatformOntoScreen(this.nextPlatformNode, this.bonusItemNode, targetXPlatform, 0)
+        this.movePlatformOntoScreen(this.nextPlatformNode, targetXPlatform, 0)
     }
 
     createPlatform(positionX: number, initialWidth: number = 0, bonusVisible: boolean = true) {
@@ -158,13 +157,16 @@ export class GameManager extends Component {
             this.playerNode.setPosition(new Vec3(newPositionX, this.playerNode.position.y, 0))
 
             if (progress >= 1) {
-
+                this.setState(GameStates.End, 'update')
                 this.moveDetails.targetX = 0
                 if (this.moveDetails.callback) {
                     this.moveDetails.callback()
                 }
             }
-
+            const nextPlatformTransform = this.nextPlatformNode.getComponent(UITransform)
+            if (nextPlatformTransform && this.playerNode.position.x >= this.nextPlatformNode.position.x - nextPlatformTransform.width / 2 && this.GameState === GameStates.Running) {
+                this.setState(GameStates.Coming, 'update')
+            }
 
         }
 
@@ -213,7 +215,7 @@ export class GameManager extends Component {
             this.stickComponent.stoptStickGrowth()
             this.playerNode.getComponent(Player).setState(PlayerStates.HitStick)
             this.stickComponent.stickFall()
-
+            this.setState(GameStates.End)
             this.scheduleOnce(this.checkResult.bind(this), this.stickComponent.angleTime)
         } else {
             console.error("Stick component is missing")
@@ -241,6 +243,7 @@ export class GameManager extends Component {
         if (this.GameState !== GameStates.Idle) {
             return
         }
+        this.setState(GameStates.Touching)
         this.createStick()
         this.stickComponent = this.stickNode.getComponent(GenStick)
         if (this.stickComponent) {
@@ -256,7 +259,9 @@ export class GameManager extends Component {
         this.moveDetails.duration = duration
         this.moveDetails.elapsedTime = 0
         this.moveDetails.callback = onComplete
+        this.setState(GameStates.Running)
         this.playerNode.getComponent(Player).setState(PlayerStates.Running)
+        console.log("Char Moving")
     }
     checkResult() {
         if (!this.stickNode) {
@@ -267,12 +272,13 @@ export class GameManager extends Component {
         const nextPlatformComp = this.nextPlatformNode.getComponent(GenPlatform)
 
         if (nextPlatformComp && nextPlatformComp.isStickTouching(stickRightX)) {
-
+            this.onStickTouchPlatform()
         } else {
             this.onFailed()
         }
     }
     onStickTouchPlatform() {
+        console.log("onStickTouchPlatform")
         const nextPlatformNodeTransform = this.nextPlatformNode.getComponent(UITransform)
         let nextPlatformEdge = this.nextPlatformNode.position.x + nextPlatformNodeTransform.width / 3
 
@@ -284,6 +290,7 @@ export class GameManager extends Component {
                 this.resetPlatformsAndPlayer()
                 this.instantiateNextPlatform()
             })
+            this.setState(GameStates.Idle, 'onStickTouchPlatform')
             this.playerNode.getComponent(Player).setState(PlayerStates.Idle)
         })
     }
@@ -332,12 +339,8 @@ export class GameManager extends Component {
         this.platformNode = this.nextPlatformNode
 
 
-        const platformComp = this.platformNode.getComponent(GenPlatform)
-        if (platformComp) {
-            platformComp.setBonusPlatformVisibility(false)
-        } else {
-            console.error("Platform component is missing")
-        }
+       
+        
 
         if (this.oldStickNode) {
             this.oldStickNode.destroy()
@@ -346,9 +349,6 @@ export class GameManager extends Component {
         this.oldStickNode = this.stickNode
         this.stickNode = null
 
-        if (this.bonusItemNode) {
-            this.bonusItemNode.destroy()
-        }
 
     }
     onFailed() {
@@ -383,12 +383,13 @@ export class GameManager extends Component {
     }
     onPlayerCrashInToPlatform() {
         this.playerNode.getComponent(Player).fall()
-
+        this.setState(GameStates.End)
         this.scheduleOnce(() => {
             this.endGame()
         }, 1)
     }
     endGame() {
+        this.setState(GameStates.End)
         this.scoreNode.active = false
     }
     restartGame() {
@@ -410,6 +411,14 @@ export class GameManager extends Component {
                 position: new Vec3(this.node.position.x - this.moveDetails.distance, this.node.position.y, 0)
             })
             .start()
+    }
+    setState(state: GameStates, methodName: string = '') {
+        if (this.GameState !== state) {
+            this.GameState = state
+
+            // Log the game state and method name for debugging
+            log('Game state:', state, 'Method:', methodName)
+        }
     }
 
 }

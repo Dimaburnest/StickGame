@@ -13,36 +13,21 @@ export class GenPlatform extends Component {
     })
     platformMaxWidth: number = 200;
 
-    @property({
-        type: Node
-    })
-    bonusPlatform: Node = null;
-
-    @property({
-        type: CCFloat
-    })
-    bonusPlatformMinWidth: number = 10;
-
-    @property({
-        type: CCFloat
-    })
-    bonusPlatformMaxWidth: number = 50;
-
-    @property({
-        type: CCBoolean
-    })
-    bonusPlatformShowed: boolean = true;
+   
 
     
-    onLoad() {
-        this.bonusPlatform.setSiblingIndex(999);
+
+   
+
+    
+    onLoad() {  
     }
 
     
     initPlatform(positionX: number, initialWidth: number = 0, bonusPlatformVisible: boolean = true) {
         
 
-        this.node.setPosition(new Vec3(positionX, -480, 0));
+        this.node.setPosition(new Vec3(positionX, -50, 0));
         const uiTransform = this.node.getComponent(UITransform)
         uiTransform.width = initialWidth > 0 ? initialWidth : this.platformMinWidth + Math.random() * (this.platformMaxWidth - this.platformMinWidth)
 
@@ -67,9 +52,7 @@ export class GenPlatform extends Component {
     }
 
     
-    setBonusPlatformVisibility(visible: boolean) {
-        this.bonusPlatform.active = this.bonusPlatformShowed = visible;
-    }
+   
 
 }
 
