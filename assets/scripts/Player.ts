@@ -37,6 +37,7 @@ export class Player extends Component {
         const newY = this.isFlipped ? this.node.position.y - uiTransform.width - 5 : this.node.position.y + uiTransform.width + 5
         this.node.setPosition(new Vec3(this.node.position.x, newY, 0))
         console.log('Player flipped:', this.isFlipped, 'New Position Y:', newY)
+        
     }
 
     

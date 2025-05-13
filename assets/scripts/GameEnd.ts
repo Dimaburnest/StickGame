@@ -56,17 +56,16 @@ export class GameEnd extends Component {
     
 
     onStartScreenTouched() {
-        director.loadScene('StartScene')
+        director.loadScene('MainMenu')
 
     }
 
     /**
      * Display the end game popup with the given score and best score.
      * @param {number} score - Current score.
-     * @param {number} bestScore - Best score.
      */
 
-    showPopup(score: number, bestScore: number) {
+    showPopup(score: number) {
         this.node.active = true
 
         this.node.setSiblingIndex(this.node.parent.children.length - 1)

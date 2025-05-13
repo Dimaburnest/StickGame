@@ -6,14 +6,17 @@ export class GenPlatform extends Component {
     @property({
         type: CCFloat
     })
-    platformMinWidth: number = 50;
+    platformMinWidth: number = 0;
 
     @property({
         type: CCFloat
     })
-    platformMaxWidth: number = 200;
+    platformMaxWidth: number = 50 ;
 
-   
+    @property({
+        type: Node
+    })
+    bonusPlatform: Node = null;
 
     
 
@@ -24,13 +27,13 @@ export class GenPlatform extends Component {
     }
 
     
-    initPlatform(positionX: number, initialWidth: number = 0, bonusPlatformVisible: boolean = true) {
+    initPlatform(positionX: number, initialWidth: number = 0 ) {
         
 
         this.node.setPosition(new Vec3(positionX, -50, 0));
         const uiTransform = this.node.getComponent(UITransform)
-        uiTransform.width = initialWidth > 0 ? initialWidth : this.platformMinWidth + Math.random() * (this.platformMaxWidth - this.platformMinWidth)
-
+        uiTransform.width = initialWidth > 0 ? initialWidth :  Math.random() * (this.platformMaxWidth - this.platformMinWidth) + this.platformMinWidth
+        console.log(uiTransform.width)
         const collider = this.node.getComponent(BoxCollider2D)
         collider.size.width = uiTransform.width
         collider.size.height = uiTransform.height - 5
@@ -44,7 +47,7 @@ export class GenPlatform extends Component {
         
         
         const platformLeft = this.node.position.x - this.node.getComponent(UITransform).width / 2
-        const platformRight = this.node.position.x + this.node.getComponent(UITransform).width / 2
+        const platformRight = this.node.position.x + this.node.getComponent(UITransform).width /2
         if (stickRightX > platformLeft && stickRightX < platformRight) {
             return true
         }
