@@ -114,9 +114,9 @@ export class GameManager extends Component {
         this.setState(GameStates.Idle, 'initializeGameInstance')
     }
     calculateNextPlatformPosition() {
-        let offset = 50
-        const minDistance = 150
-        const maxDistance = view.getVisibleSize().width - this.platformPrefabWidth - offset
+        let offset = 25
+        const minDistance = 175
+        const maxDistance = view.getVisibleSize().width - this.platformPrefabWidth - offset +20
 
         let randomDistance = minDistance + Math.random() * (maxDistance - minDistance)
         let targetX = this.defaultPosition.position.x + randomDistance
@@ -245,12 +245,14 @@ export class GameManager extends Component {
         const stickNodeTransform = this.stickNode.getComponent(UITransform)
         let moveAmount = -view.getVisibleSize().width / 3
         this.stickNode.setPosition(
-             moveAmount = -view.getVisibleSize().width / 3 + 12,
-            this.platformNode.position.y + platformNodeTransform.height / 2 -110)
+             moveAmount = -view.getVisibleSize().width / 3 -18,
+            this.platformNode.position.y + platformNodeTransform.height / 2 - 110)
 
         stickNodeTransform.height = 0
         this.stickNode.angle = 0
+        
     }
+    
     onTouchStart() {
         if (this.GameState !== GameStates.Idle) {
             return
@@ -314,12 +316,12 @@ export class GameManager extends Component {
         const nextPlatformTransform = this.nextPlatformNode.getComponent(UITransform)
         const playerNodeTransform = this.playerNode.getComponent(UITransform)
         this.futurePlatformPosition =
-            moveAmount - nextPlatformTransform.width / 2 + playerNodeTransform.width /1.3
+            moveAmount - nextPlatformTransform.width / 2 + playerNodeTransform.width /1.3 
 
         tween(this.nextPlatformNode)
             .to(moveTime, {
                 position: new Vec3(
-                    moveAmount,
+                    moveAmount-20,
                     this.nextPlatformNode.position.y,
                     0)
             })
@@ -328,7 +330,7 @@ export class GameManager extends Component {
         tween(this.playerNode)
             .to(moveTime, {
                 position: new Vec3(
-                    moveAmount,
+                    moveAmount-30,
                     this.playerNode.position.y,
                     0)
             })
@@ -339,7 +341,7 @@ export class GameManager extends Component {
             tween(this.stickNode)
                 .to(moveTime, {
                     position: new Vec3(
-                        this.stickNode.position.x + futureStickPosition,
+                        this.stickNode.position.x + futureStickPosition -30,
                         this.stickNode.position.y,
                         0
                     )
