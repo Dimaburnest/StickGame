@@ -9,7 +9,6 @@ import { GenStick } from './GenStick'
 import { Player } from './Player'
 import { GameStates } from '../State/GameState'
 import { PlayerStates } from '../State/PlayerState'
-import { Score } from './Score';
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
@@ -61,16 +60,19 @@ export class GameManager extends Component {
     @property({
         type: Node
     })
-    scoreNode: Node = null
+    @property(Label)
+    private countLabel: Label | null
+
+    scoreNode: Node
     private endGamePopupInstance: Node = null
     private platformNode: Node = null
     private nextPlatformNode: Node = null
     private oldStickNode: Node = null
     private stickNode: Node = null
     private playerNode: Node = null
-    
     private stickComponent: GenStick = null
-    private endGameComponent: GameEnd = null
+    private endGameComponent: GameEnd = null 
+    private _count: number = 0;
     private moveDetails = {
         distance: 0,
         startX: 0,
@@ -90,6 +92,14 @@ export class GameManager extends Component {
         this.endGameComponent = this.endGamePopupInstance.getComponent(GameEnd) 
         this.initializeGameInstance()
         this.initTouchEvents()
+        this.scoreNode = new Node("counter");
+        this.scoreNode.setPosition(new Vec3 (0,200,0))
+        this.scoreNode.getChildByName("Text")
+        this.scoreNode.parent = this.node;
+        this.countLabel = this.scoreNode.addComponent(Label);
+        if (this.countLabel) {
+            this.countLabel.string = "0";
+        }
     }
     initializeGameInstance() {
         const initialPlatformX = -view.getVisibleSize().width/2
@@ -351,7 +361,20 @@ export class GameManager extends Component {
         }
         this.oldStickNode = this.stickNode
         this.stickNode = null
+        this.incrementCounter()
     }
+    public incrementCounter() {
+        this._count++;
+        this.updateCounterDisplay();
+    }
+
+    private updateCounterDisplay() {
+        if (this.countLabel) {
+            this.countLabel.string = this._count.toString();
+        }
+    }
+
+    
     onFailed() {
         const stickNodeTransform = this.stickNode.getComponent(UITransform)
         let moveLength = this.stickNode.position.x + stickNodeTransform.height - this.playerNode.position.x
@@ -390,15 +413,21 @@ export class GameManager extends Component {
         }, 1)
     }
     endGame() {
-        this.endGameComponent.showPopup(1)
+        this.endGameComponent.showPopup(this._count)
         this.setState(GameStates.End)
         this.dispose()
+        this.scoreNode.active = false
 
     }
     restartGame() {
         this.endGameComponent.hidePopup()
         this.dispose()
         this.initializeGameInstance()
+        this.scoreNode.active = true
+        this._count = 0
+        if (this.countLabel) {
+            this.countLabel.string = "0";
+        }
     }
     dispose() {
         this.rootNode.removeAllChildren()

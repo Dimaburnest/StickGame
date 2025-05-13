@@ -6,12 +6,12 @@ export class GenPlatform extends Component {
     @property({
         type: CCFloat
     })
-    platformMinWidth: number = 0;
+    platformMinWidth: number = 50;
 
     @property({
         type: CCFloat
     })
-    platformMaxWidth: number = 50 ;
+    platformMaxWidth: number = 200 ;
 
     @property({
         type: Node
@@ -32,7 +32,7 @@ export class GenPlatform extends Component {
 
         this.node.setPosition(new Vec3(positionX, -50, 0));
         const uiTransform = this.node.getComponent(UITransform)
-        uiTransform.width = initialWidth > 0 ? initialWidth :  Math.random() * (this.platformMaxWidth - this.platformMinWidth) + this.platformMinWidth
+        uiTransform.width = initialWidth > 0 ? initialWidth :  Math.random() * (this.platformMaxWidth - this.platformMinWidth) + this.platformMinWidth -20
         console.log(uiTransform.width)
         const collider = this.node.getComponent(BoxCollider2D)
         collider.size.width = uiTransform.width
