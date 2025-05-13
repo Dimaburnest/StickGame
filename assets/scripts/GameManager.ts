@@ -61,7 +61,6 @@ export class GameManager extends Component {
     @property({
         type: Node
     })
-    score: number = 0
     scoreNode: Node = null
     private endGamePopupInstance: Node = null
     private platformNode: Node = null
@@ -394,12 +393,10 @@ export class GameManager extends Component {
         this.endGameComponent.showPopup(1)
         this.setState(GameStates.End)
         this.dispose()
-        this.scoreNode.active = false
 
     }
     restartGame() {
         this.endGameComponent.hidePopup()
-        this.scoreNode.active = true
         this.dispose()
         this.initializeGameInstance()
     }
@@ -425,9 +422,7 @@ export class GameManager extends Component {
             log('Game state:', state, 'Method:', methodName)
         }
     }
-    addScore() {
-
-    }
+    
 
 }
 
